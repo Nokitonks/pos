@@ -1,0 +1,118 @@
+<Manager>:
+  id: screen_manager
+
+  menu_screen: menu_screen
+  reg_screen: reg_screen
+ 
+  MenuScreen:
+    id: menu_screen
+    name: "menu_screen"
+    manager: screen_manager
+
+  RegisterScreen:
+    id: reg_screen
+    name: "reg_screen"
+    manager: screen_manager
+  
+
+<CheckItem>:
+  canvas.before:
+    Color:
+      rgba: (0,0.9,.1,.3) if self.selected else (0,0,0,1)
+    Rectangle:
+      pos: self.pos
+      size: self.size
+
+<CheckItemPopup>:
+  size_hint: 0.6,0.6  
+
+<CheckItemPopupLayout>:
+  orientation: 'vertical'
+  CheckItemLayout:
+    id: check_item
+  Label:
+    text: "Assign to seat"
+  BoxLayout:
+    rows:1
+  BoxLayout:
+    cols:2
+    rows:1
+    Button:
+      id: cb
+      text: "Close"
+    Button:
+      id: delete
+      text: "Delete"
+   
+<CheckItemLayout>:
+  cols: 3
+  rows: 1
+  Label:
+    id: drink_name
+  Label: 
+    id: drink_quantity
+  Label:
+    id: drink_price
+  Label:
+    id: assigned_seat
+
+<RegisterScreen>:
+  GridLayout:
+    cols: 2
+    size: root.width, root.height 
+    BoxLayout:
+      orientation: 'vertical'
+      id: left
+      Label:
+        text: 'User Logged In'
+        size_hint:  1 , 0.05
+      CheckLayoutView:
+        id: check_view
+        viewclass: 'CheckItem'
+        size_hint:  1 , 0.8
+        CheckLayout:
+          orientation: 'vertical'
+          default_size_hint: 1, None
+          size_hint_y: None
+          height: self.minimum_height
+          multiselect: False
+      Label:
+        text: 'Payout Buttons Area'
+        size_hint:  1 , 0.15
+
+
+    BoxLayout:
+      orientation: 'vertical'
+      id: right
+      Label:
+        text: 'User # + solved tiles'
+        size_hint:  1 , 0.05
+      BoxLayout:
+        id: table_area
+        rows:1
+        cols:3
+        size_hint:  1 , 0.2
+      BoxLayout:
+        size_hint: 1, 0.15
+        rows: 1
+        cols: 4
+        MenuCategoryToggleButton:
+          text: "B"        
+          group: "menu_category"
+        MenuCategoryToggleButton:
+          text: "R"        
+          group: "menu_category"
+        MenuCategoryToggleButton:
+          text: "G"        
+          group: "menu_category"
+        MenuCategoryToggleButton:
+          text: "Y"        
+          group: "menu_category"
+
+      GridLayout:
+        id: menu_grid
+        rows:5
+        cols:5
+        size_hint:  1 , 0.6
+
+
