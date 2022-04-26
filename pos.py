@@ -20,6 +20,7 @@ from kivy.uix.recycleview.views import RecycleDataViewBehavior
 from kivy.properties import BooleanProperty
 from kivy.uix.popup import Popup
 
+tax_rate = 7.25 #IN PERCENTAGE
 
 def readMenu(file_name):
 
@@ -49,16 +50,19 @@ def initializeRegisterScreen(table_number):
     for seat in curr_table.seat_list[:seat_len]:
         seat_button = SeatButton(seat=seat)
         seat_button.group = "table_area"
+        seat_button.text = str(seat.number)
         table_area.add_widget(seat_button) 
 
     table_button.group = "table_area"
     table_button.text = str(table_number)
     table_button.state = "down"
+    table_button.background_color = [0,1,0,1]
     table_area.add_widget(table_button)
 
     for seat in curr_table.seat_list[seat_len:]:
         seat_button = SeatButton(seat=seat)
         seat_button.group = "table_area"
+        seat_button.text = str(seat.number)
         table_area.add_widget(seat_button) 
 
         
@@ -88,7 +92,7 @@ class MenuCategoryToggleButton(ToggleButton):
                 if (widget.state == "down"):
                     number = str(widget.seat.number)
                     break
-        time = datetime.datetime.now().strftime("%m/%d/%Y, %H:%M:%S") 
+        time = datetime.datetime.now().strftime("%m/%d/%Y, %H:%M:%S,%f") 
         check = {"drink_name":button.drink.name,
                 "drink_price":button.drink.price,
                 "drink_quantity":"1",
@@ -107,7 +111,6 @@ class MenuCategoryToggleButton(ToggleButton):
                     break
         pass
     def on_state(self, widget, value):
-
         if value == "down":
             val = self.text
             app = App.get_running_app()
@@ -171,6 +174,16 @@ class Seat(object):
         #check is a list of CheckItems
         self.check = check
 
+class TableAssignButton(Button):
+    def __init__(self, table, **kwargs):
+        super(TableAssignButton, self).__init__(**kwargs)
+        self.table = table
+    pass
+class SeatAssignButton(Button):
+    def __init__(self, seat, **kwargs):
+        super(SeatAssignButton, self).__init__(**kwargs)
+        self.seat = seat
+    pass
 
 class TableButton(ToggleButton): 
     def __init__(self, table, **kwargs):
@@ -217,8 +230,9 @@ class CheckItem(RecycleDataViewBehavior, CheckItemLayout):
         if (len(data) != 0):
             self.ids.drink_name.text = data['drink_name'] 
             self.ids.drink_quantity.text = data['drink_quantity'] 
-            self.ids.drink_price.text = data['drink_price'] 
             self.ids.assigned_seat.text = data["assigned_seat"]
+            self.ids.drink_price.text = "$%s"%data['drink_price'] 
+
         return super(CheckItem, self).refresh_view_attrs(
             rv, index, data)
 
@@ -241,19 +255,69 @@ class CheckItem(RecycleDataViewBehavior, CheckItemLayout):
         del check_view.data[self.index]
 
 
+    def assignSeat(self,button):
+
+        #When we want to change the assign seat we del the prev data and re add
+        # it to the correct check
+
+        #We save the check data so we can re add it later
+        app = App.get_running_app()
+        check_view = app.root.reg_screen.ids.check_view
+        item = check_view.data[self.index]
+
+        #delete old data
+        self.deleteData(button)
+
+        #just add to appropriate check and refresh the check view
+
+        number = button.text
+        item['assigned_seat'] = number
+        for widget in app.root.reg_screen.ids.table_area.children:
+            if type(widget) == SeatButton:
+                if (number == str(widget.seat.number)):
+                    widget.seat.check.append(item)
+                    break
+            elif type(widget) == TableButton:
+                if (number == "X"):
+                    widget.table.check.append(item)
+                    break
+
+        #reload current selected toggle button
+        for widget in app.root.reg_screen.ids.table_area.children:
+            if widget.state == "down":
+                widget.on_state(widget,"down")
+        
 
     def on_touch_down(self, touch):
         ''' Add selection on touch down '''
         if super(CheckItem, self).on_touch_down(touch):
             return True
         if self.collide_point(*touch.pos) and self.selectable:
+            app = App.get_running_app()
             layout = CheckItemPopupLayout()
+            assign_layout = layout.ids.assign_seat
+            table_area = app.root.reg_screen.ids.table_area
             popup = CheckItemPopup(title="demo", content=layout) 
+             
+            for widget in reversed(table_area.children):
+                if type(widget) == SeatButton:
+                    seat_button = SeatAssignButton(seat=widget.seat)
+                    seat_button.text = str(widget.seat.number)
+                    seat_button.bind(on_press=self.assignSeat,on_release=popup.dismiss)
+                    assign_layout.add_widget(seat_button)
+
+                elif type(widget) == TableButton:
+                    table_button = TableAssignButton(table=widget.table)
+                    table_button.text = "X"
+                    table_button.bind(on_press=self.assignSeat,on_release=popup.dismiss)
+                    assign_layout.add_widget(table_button)
+
             layout.ids.cb.bind(on_release=popup.dismiss)
             layout.ids.delete.bind(on_press=self.deleteData,on_release=popup.dismiss)
             layout.ids.check_item.ids.drink_name.text =  self.ids.drink_name.text
             layout.ids.check_item.ids.drink_price.text =  self.ids.drink_price.text
             layout.ids.check_item.ids.drink_quantity.text =  self.ids.drink_quantity.text
+            layout.ids.check_item.ids.assigned_seat.text =  self.ids.assigned_seat.text
             popup.open()
             return self.parent.select_with_touch(self.index, touch)
 
@@ -271,6 +335,28 @@ class CheckLayoutView(RecycleView):
         super(CheckLayoutView, self).__init__(**kwargs)
         self.data = [
             ]
+
+    def refresh_from_data(self, *largs, **kwargs):
+        super(CheckLayoutView,self).refresh_from_data(*largs, **kwargs)
+
+        #Going to update the total 
+        app = App.get_running_app()
+        try: subtotal_label = app.root.reg_screen.ids.subtotal
+        except: return
+        subtotal = 0.00
+        for check in self.data:
+            subtotal += float(check['drink_price'])
+        subtotal_label.text = "Subtotal: $%s"%str(subtotal)
+        
+        #update Tax and Total
+        tax = subtotal * (tax_rate/100)        
+        tax = round(tax,2)
+
+        total = subtotal + tax
+        tax_label = app.root.reg_screen.ids.tax
+        tax_label.text = "Tax: $%s"%str(tax)
+        total_label = app.root.reg_screen.ids.total
+        total_label.text = "Total: $%s"%str(total)
 
 class CheckLayout(FocusBehavior, LayoutSelectionBehavior, RecycleBoxLayout):
     pass
@@ -306,7 +392,7 @@ class Manager(ScreenManager):
     reg_screen = ObjectProperty(None)
 
 menu_drinks = []
-tables= [Table(number=0,seat_list=[Seat("A700",[],0),Seat("A700",[],1),Seat("A700",[],2),Seat("1281000AB",[],3)])]
+tables= [Table(number=0,seat_list=[Seat("A700",[],0),Seat("A700",[],1)])]
 
 if __name__ == "__main__":
 

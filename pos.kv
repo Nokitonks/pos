@@ -33,6 +33,7 @@
   Label:
     text: "Assign to seat"
   BoxLayout:
+    id: assign_seat
     rows:1
   BoxLayout:
     cols:2
@@ -52,9 +53,9 @@
   Label: 
     id: drink_quantity
   Label:
-    id: drink_price
-  Label:
     id: assigned_seat
+  Label:
+    id: drink_price
 
 <RegisterScreen>:
   GridLayout:
@@ -69,16 +70,45 @@
       CheckLayoutView:
         id: check_view
         viewclass: 'CheckItem'
-        size_hint:  1 , 0.8
+        size_hint:  1 , 0.7
         CheckLayout:
           orientation: 'vertical'
           default_size_hint: 1, None
           size_hint_y: None
           height: self.minimum_height
           multiselect: False
-      Label:
-        text: 'Payout Buttons Area'
+      GridLayout:
+        id: total_calc
+        rows:3
         size_hint:  1 , 0.15
+        Label:
+          id:subtotal
+          text: "Subtotal: $0.00"
+          halign: "right"
+          text_size: self.width*7/8, None 
+        Label:
+          id:tax
+          text: "Tax: $0.00"
+          halign: "right"
+          text_size: self.width*7/8, None 
+        Label:
+          id:total
+          text: "Total: $0.00"
+          halign: "right"
+          text_size: self.width*7/8, None 
+           
+      BoxLayout:
+        rows: 1
+        cols: 2
+        id: total_buttons
+        text: 'Payout Buttons Area'
+        size_hint:  1 , 0.10
+        Button:
+          id:print_button
+          text: "Print"
+        Button:
+          id:checkout_button
+          text: "Checkout"
 
 
     BoxLayout:
