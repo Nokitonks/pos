@@ -3,17 +3,218 @@
 
   menu_screen: menu_screen
   reg_screen: reg_screen
- 
+  table_screen: table_screen
+  token_screen: token_screen
+
   MenuScreen:
     id: menu_screen
     name: "menu_screen"
     manager: screen_manager
+  
+  TableScreen:
+    id: table_screen
+    name: "table_screen"
+    manager: screen_manager  
 
   RegisterScreen:
     id: reg_screen
     name: "reg_screen"
     manager: screen_manager
   
+  TokenScreen:
+    id: token_screen
+    name: "token_screen"
+    manager: screen_manager
+
+
+<TokenScreen>:
+  BoxLayout:
+    orientation: "vertical"
+    cols: 1
+    Button:
+      id: back_button
+      text: 'Back'
+      size_hint: 0.25 , 0.1
+    BoxLayout:
+      id:token_toggle_buttons
+      size_hint:  1 , 0.1
+      orientation: "horizontal"
+      rows:1
+      TokenToggleButton:
+        group: "token_category"
+        text: 'Tokens' 
+      TokenToggleButton:
+        group: "token_category"
+        text: 'Drinks' 
+      TokenToggleButton:
+        group: "token_category"
+        text: 'Admin' 
+    SearchArea:
+      size_hint: 1,0.1 
+    TokenLayoutView:
+      id: token_view
+      viewclass: 'TokenItem'
+      size_hint:  1 , 0.6
+      TokenLayout:
+        orientation: 'vertical'
+        default_size_hint: 1, None
+        size_hint_y: None
+        height: self.minimum_height
+        multiselect: False
+    AddTokenItemButton:
+      text: "Add new value"
+      size_hint:  1 , 0.1
+
+<DrinkItem>:
+  canvas.before:
+    Color:
+      rgba: (0,0.9,.1,.3) if self.selected else (0,0,0,1)
+    Rectangle:
+      pos: self.pos
+      size: self.size
+<TokenItem>:
+  canvas.before:
+    Color:
+      rgba: (0,0.9,.1,.3) if self.selected else (0,0,0,1)
+    Rectangle:
+      pos: self.pos
+      size: self.size
+
+
+<AdminItem>:
+  canvas.before:
+    Color:
+      rgba: (0,0.9,.1,.3) if self.selected else (0,0,0,1)
+    Rectangle:
+      pos: self.pos
+      size: self.size
+<AdminItemLayout>:
+  BoxLayout:
+    orientation: "horizontal"
+    cols:2
+    Label:
+      id:token_id
+      text: "TokenID"
+      size_hint: 0.5,1
+    Label:
+      id:desc
+      text: "Description"
+      size_hint: 0.5,1
+<DrinkItemLayout>:
+  BoxLayout:
+    orientation: "horizontal"
+    cols:6
+    Label:
+      id:drink_id
+      text: "DrinkID"
+      size_hint: 0.1,1
+    Label:
+      id:price
+      text: "Price"
+      size_hint: 0.3,1
+    Label:
+      id:discount
+      text: "Discount"
+      size_hint: 0.1,1
+    Label:
+      id:token_id
+      text: "TokenID"
+      size_hint: 0.1,1
+    Label:
+      id:solve
+      text: "Solve"
+      size_hint: 0.1,1
+    Label:
+      id:name
+      text: "Name"
+      size_hint: 0.3,1
+
+<TokenItemLayout>:
+  BoxLayout:
+    orientation: "horizontal"
+    cols:5
+
+    Label:
+      id:customer_id
+      text: "CustomerID"
+      size_hint: 0.1,1
+    Label:
+      id:token_id
+      text: "TokenID"
+      size_hint: 0.3,1
+    Label:
+      id:solved
+      text: "Solved"
+      size_hint: 0.1,1
+    Label:
+      id:threewords
+      text: "ThreeWords"
+      size_hint: 0.1,1
+    Label:
+      id:name_id
+      text: "NameID"
+      size_hint: 0.4,1
+
+
+<TokenItemPopup>:
+  size_hint: 0.6,0.6  
+
+<TokenItemPopupLayout>:
+  orientation: 'vertical'
+  BoxLayout:
+    id: token_popout
+  Label:
+    text: "Assign to seat"
+  BoxLayout:
+    cols:2
+    rows:1
+    Button:
+      id: cb
+      text: "Close"
+    Button:
+      id: delete
+      text: "Delete"
+
+<EditButtonPopup>:
+  size_hint: 0.6,0.6  
+<EditButtonPopupLayout>:
+  orientation: 'vertical'
+  BoxLayout:
+    id: edit_popout
+  Label:
+    text: "Todah"
+  BoxLayout:
+    cols:1
+    rows:1
+    Button:
+      id: cb
+      text: "Close"
+    Button:
+      id: save
+      text: "Save"
+
+<TableScreen>:
+  BoxLayout:
+    orientation: "vertical"
+    Button:
+      id: back_button
+      text: 'Back'
+      size_hint: 0.25 , 0.1
+    SparseGridLayout:
+      rows: 10
+      columns: 10
+      id: table_grid
+
+<MenuScreen>:
+  BoxLayout:
+    orientation: "vertical"
+    cols: 1
+    Button: 
+      id: table_button
+      text: "Table Screen"
+    Button: 
+      id: token_button
+      text: "Token Screen"
 
 <CheckItem>:
   canvas.before:
@@ -64,9 +265,16 @@
     BoxLayout:
       orientation: 'vertical'
       id: left
-      Label:
-        text: 'User Logged In'
+      BoxLayout:
+        rows:1
         size_hint:  1 , 0.05
+        Button:
+          id: back_button
+          text: 'Back'
+          size_hint: 0.25 , 1
+        Label:
+          text:"User Logged in"
+          size_hint: 0.75 , 1
       CheckLayoutView:
         id: check_view
         viewclass: 'CheckItem'
