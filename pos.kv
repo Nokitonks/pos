@@ -141,7 +141,11 @@
     Label:
       id:token_id
       text: "TokenID"
-      size_hint: 0.3,1
+      size_hint: 0.25,1
+    Label:
+      id:half_solved
+      text: "Half Solved"
+      size_hint: 0.1,1
     Label:
       id:solved
       text: "Solved"
@@ -153,7 +157,7 @@
     Label:
       id:name_id
       text: "NameID"
-      size_hint: 0.4,1
+      size_hint: 0.35,1
 
 
 <TokenItemPopup>:
@@ -163,8 +167,6 @@
   orientation: 'vertical'
   BoxLayout:
     id: token_popout
-  Label:
-    text: "Assign to seat"
   BoxLayout:
     cols:2
     rows:1
@@ -181,17 +183,20 @@
   orientation: 'vertical'
   BoxLayout:
     id: edit_popout
-  Label:
-    text: "Todah"
+    orientation: 'vertical'
+    size_hint: 1 , 3
   BoxLayout:
     cols:1
     rows:1
     Button:
       id: cb
       text: "Close"
-    Button:
+      size_hint: 0.5 , 1.0
+    SaveButton:
       id: save
+      value: ""
       text: "Save"
+      size_hint: 0.5 , 1.0
 
 <TableScreen>:
   BoxLayout:
@@ -201,8 +206,8 @@
       text: 'Back'
       size_hint: 0.25 , 0.1
     SparseGridLayout:
-      rows: 10
-      columns: 10
+      rows: 6
+      columns: 6
       id: table_grid
 
 <MenuScreen>:
@@ -257,7 +262,6 @@
     id: assigned_seat
   Label:
     id: drink_price
-
 <RegisterScreen>:
   GridLayout:
     cols: 2
@@ -322,9 +326,56 @@
     BoxLayout:
       orientation: 'vertical'
       id: right
-      Label:
-        text: 'User # + solved tiles'
+      BoxLayout:
         size_hint:  1 , 0.05
+        orientation: 'horizontal'
+        Label:
+          id: seat_customer_id
+          text: "00000000"
+          size_hint: 0.35, 1
+        SymbolArea:
+          id: symbol_area
+          orientation: 'vertical'
+          size_hint: 0.65,1 
+          BoxLayout:
+            id: symbols_half_solved
+            Button:
+              text: "1"
+            Button:
+              text: "2"
+            Button:
+              text: "3"
+            Button:
+              text: "4"
+            Button:
+              text: "5"
+            Button:
+              text: "6"
+            Button:
+              text: "7"
+            Button:
+              text: "8"
+          BoxLayout:
+            id: symbols_solved
+            Button:
+              text: "1"
+            Button:
+              text: "2"
+            Button:
+              text: "3"
+            Button:
+              text: "4"
+            Button:
+              text: "5"
+            Button:
+              text: "6"
+            Button:
+              text: "7"
+            Button:
+              text: "8"
+
+  
+             
       BoxLayout:
         id: table_area
         rows:1

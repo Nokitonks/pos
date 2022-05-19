@@ -182,10 +182,46 @@ class AddTokenItemButton(Button):
         pass 
 
         pass
+
+class HexTextInput(TextInput):
+
+    def __init__(self, **kwargs):
+        super(HexTextInput, self).__init__(**kwargs)
+        self.bind(text=self.hexCalc)
+
+    def hexCalc(self,*args):
+        num_area = self.parent.children[1] #Might change if layout changes,
+        text = args[1]
+        #CAREFUL
+    
+        try:    
+            ascii_text = hex(int(text))
+            new_text  = str(ascii_text)[2:]
+            length = len(new_text)
+            for i in range(8-length):
+                new_text = "0" + new_text
+            new_text = new_text.upper()
+            num_area.text = new_text
+        except:
+           pass
+    pass
+class SaveButton(Button):
+
+    value = StringProperty()
+class EditTextInput(TextInput):
+
+    def update(self,*args):
+        save_button = self.parent.parent.ids.save
+        save_button.value = self.text
+
+
 class EditButtonPopupLayout(BoxLayout):
     pass
 class EditButtonPopup(Popup):
-    pass
+    db_id = StringProperty()
+    def __init__(self,db_id, **kwargs):
+        super(EditButtonPopup, self).__init__(**kwargs)
+        self.db_id = db_id
 
 class EditButton(Button):
     
@@ -200,24 +236,48 @@ class EditButton(Button):
     def on_release(self):
         
         layout = EditButtonPopupLayout()
-        popup = EditButtonPopup(title="Change", content=layout) 
+        popup = EditButtonPopup(title="Change", content=layout,db_id=self.db_id) 
         layout.ids.cb.bind(on_release=popup.dismiss)
         layout.ids.save.bind(on_press=self.save)
         layout.ids.save.bind(on_release=popup.dismiss)
         button_area = layout.ids.edit_popout
-        text_input = TextInput(text=self.text) 
-        button_area.add_widget(text_input)
+
+        if (self.key == "name"):
+            #This is the drink name where we select
+            toggle_layout = BoxLayout()
+            menu_button = MenuCategoryDatabase(text="B",group="menu")
+            menu_button.size_hint = (0.25,1)
+            toggle_layout.add_widget(menu_button)
+            menu_button = MenuCategoryDatabase(text="R",group="menu")
+            menu_button.size_hint = (0.25,1)
+            toggle_layout.add_widget(menu_button)
+            menu_button = MenuCategoryDatabase(text="G",group="menu")
+            menu_button.size_hint = (0.25,1)
+            toggle_layout.add_widget(menu_button)
+            menu_button = MenuCategoryDatabase(text="Y",group="menu")
+            menu_button.size_hint = (0.25,1)
+            toggle_layout.add_widget(menu_button)
+
+            button_area.add_widget(toggle_layout)
+            box_layout = BoxLayout()
+            box_layout.text = "menu_grid"
+            button_area.add_widget(box_layout)
+
+        else:
+            text_input = EditTextInput(text=self.text) 
+            text_input.bind(text=text_input.update)
+            button_area.add_widget(text_input)
+            if (self.key =="token_id"):
+                #add in option to convert to hex
+                hex_area = HexTextInput()
+                button_area.add_widget(hex_area)
         
         popup.open()
 
     def save(self,*args):
 
         button = args[0]
-        print(button.parent)
-        for widget in button.parent.parent.ids.edit_popout.children:
-            if type(widget) == TextInput:
-                self.text = widget.text 
-                break
+        self.text = button.parent.parent.ids.save.value
 
         #Find Already selected toggle button 
         app = App.get_running_app()
@@ -489,6 +549,7 @@ class TokenItem(RecycleDataViewBehavior, TokenItemLayout):
         self.ids.solved.text = data['solved'] 
         self.ids.threewords.text = data['threewords'] 
         self.ids.name_id.text = data['name_id'] 
+        self.ids.half_solved.text = data['half_solved'] 
         return super(TokenItem, self).refresh_view_attrs(
             rv, index, data)
 
@@ -510,6 +571,9 @@ class TokenItem(RecycleDataViewBehavior, TokenItemLayout):
             button\
             = EditButton(text=self.ids.token_id.text,key="token_id",db_id=str(self.db_id)) 
             button.size_hint = (3,1)
+            button_area.add_widget(button)
+            button\
+            = EditButton(text=self.ids.half_solved.text,key="half_solved",db_id=str(self.db_id)) 
             button_area.add_widget(button)
             button\
             = EditButton(text=self.ids.solved.text,key="solved",db_id=str(self.db_id)) 
@@ -605,6 +669,7 @@ class TokenToggleButton(ToggleButton):
                 token["solved"] = row[3] 
                 token["threewords"] = row[4] 
                 token["name_id"] = row[5] 
+                token["half_solved"] = row[6] 
                 
                 self.data.append(token)
 
@@ -661,7 +726,6 @@ class TokenToggleButton(ToggleButton):
             token_view = app.root.token_screen.ids.token_view
             token_view.viewclass = "AdminItem" 
             token_view.data = self.data
-
 
 class MenuCategoryToggleButton(ToggleButton):
     
@@ -722,6 +786,88 @@ class MenuCategoryToggleButton(ToggleButton):
             for button in self.menu_buttons:
                 menu_grid.remove_widget(button)
 
+class MenuCategoryDatabase(MenuCategoryToggleButton):
+
+    def changeItem(self, menu_button):
+
+        #Find Already selected toggle button 
+        app = App.get_running_app()
+        token_view = app.root.token_screen.ids.token_view
+        token_toggle_buttons = app.root.token_screen.ids.token_toggle_buttons
+        selected = None
+        category = None
+        for button in token_toggle_buttons.children:
+            if (button.state == "down"):
+                category = button.text
+                if (category == "Admin"):
+                    db_table = "cursedwebsite_admin"
+                elif (category == "Drinks"):
+                    db_table = "cursedwebsite_drink"
+                elif (category == "Tokens"):
+                    db_table = "cursedwebsite_customer"
+
+                #Update database and reload list
+                name = menu_button.drink.name
+                price = menu_button.drink.price
+                popup = self.parent.parent.parent.parent.parent.parent
+                db_id = popup.db_id  
+                con = sqlite3.connect(server_database_path)
+                cur = con.cursor()
+                cmd = 'UPDATE %s SET name = "%s" WHERE id="%d"'%(db_table,name,int(db_id))
+                print(cmd)
+                cur.execute(cmd)
+                cmd = 'UPDATE %s SET price = "%s" WHERE id="%d"'%(db_table,price,int(db_id))
+                print(cmd)
+                cur.execute(cmd)
+                con.commit()
+                cmd = 'SELECT * FROM %s WHERE id= "%d"'%(db_table,int(db_id))
+                for row in cur.execute(cmd):
+                    print(row)
+                con.close()
+                button.on_state(button,"down") 
+                self.parent.parent.parent.ids.save.value = name
+                
+                break
+
+
+
+        pass
+
+    def on_state(self, widget, value):
+        if value == "down":
+            val = self.text
+            menu_grid = None
+            for widget in self.parent.parent.children:
+                if (widget.text== "menu_grid"):
+                    menu_grid = widget
+                    break
+            if (menu_grid == None): return
+
+            self.menu_buttons = []
+            for drink in menu_drinks:
+                if drink["Category"] == val:
+                    
+                    d = Drink(
+                        name = drink["Name"],
+                        abbreviation= drink["Abbreviation"],
+                        price = drink["Price"],
+                        category = drink["Category"])
+                    button = MenuButton(drink=d)
+                    button.bind(on_press=self.changeItem)
+                    self.menu_buttons.append(button)
+                    menu_grid.add_widget(button)
+
+        else:
+            menu_grid = None
+            for widget in self.parent.parent.children:
+                if (widget.text == "menu_grid"):
+                    menu_grid = widget
+                    break
+            if (menu_grid == None): return
+            for button in self.menu_buttons:
+                menu_grid.remove_widget(button)
+    pass
+
 class MenuButton(Button):
     def __init__(self, drink, **kwargs):
         super(MenuButton, self).__init__(**kwargs)
@@ -749,6 +895,45 @@ class SeatButton(ToggleButton):
             app = App.get_running_app()
             check_view = app.root.reg_screen.ids.check_view
             check_view.data = self.seat.check
+            #Change Symbolarea + customer_id to match seated person from DB
+            
+            table_num = app.root.table_screen.selected_table
+            
+            con = sqlite3.connect(server_database_path)
+            cur = con.cursor()
+            cmd = 'SELECT * FROM cursedwebsite_table WHERE number= %d'%table_num 
+            board_id = 0
+            seat_num = int(self.text) + 1 #Seat numbers start 0, table boards start 1
+            for row in cur.execute(cmd):
+                board_id = row[seat_num+1]
+            cmd = 'SELECT * FROM cursedwebsite_board WHERE id = %d'%board_id
+            token = ""
+            half_solved = 0
+            solved = 0
+            for row in cur.execute(cmd):
+                token = row[2]
+                half_solved = int(row[4])
+                solved = int(row[6])
+            half_solved_set = set()
+            solved_set = set()
+            for i in range(1,9):
+                if (half_solved & 0x1): 
+                    half_solved_set.add(i)
+                if (solved & 0x1):
+                    solved_set.add(i)
+                half_solved >>= 1
+                solved >>= 1
+
+            for child in app.root.reg_screen.ids.symbols_half_solved.children:
+                if (int(child.text) in half_solved_set): child.background_color = [0,0,1,1]
+                else: child.background_color = [1,1,1,1]
+            for child in app.root.reg_screen.ids.symbols_solved.children:
+                if (int(child.text) in solved_set): child.background_color = [1,0,1,1]
+                else: child.background_color = [1,1,1,1]
+
+            app.root.reg_screen.ids.seat_customer_id.text = token
+            con.commit()
+            con.close()
 
         else:
             pass
@@ -802,9 +987,8 @@ class Table(object):
         self.seat_list = seat_list
         self.seat_amt = len(seat_list)
 
-
-
-
+class SymbolArea(BoxLayout):
+    pass
 class CheckItem(RecycleDataViewBehavior, CheckItemLayout):
     ''' Add selection support to the Label '''
     
