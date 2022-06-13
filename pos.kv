@@ -220,6 +220,9 @@
     Button: 
       id: token_button
       text: "Token Screen"
+    Button: 
+      id: connect_button
+      text: "Connect to Terminal"
 
 <CheckItem>:
   canvas.before:
@@ -229,9 +232,16 @@
       pos: self.pos
       size: self.size
 
+<ConnectPopup>:
+  size_hint: 0.6,0.6  
 <CheckItemPopup>:
   size_hint: 0.6,0.6  
 
+<ConnectPopupLayout>:
+  orientation: 'vertical'
+  Label:
+    id: connecting
+    text: "Connecting to terminal..."
 <CheckItemPopupLayout>:
   orientation: 'vertical'
   CheckItemLayout:

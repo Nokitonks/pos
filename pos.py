@@ -1,8 +1,14 @@
 import kivy
+import json
+import logging
+import threading
+import time
 import csv
 import datetime
 import sqlite3
 
+from webhook_testing import wait_for_webhook_event
+from square_pos import *
 from kivy.app import App
 from kivy.uix.textinput import TextInput
 from functools import partial
@@ -26,20 +32,21 @@ from kivy.properties import BooleanProperty
 from kivy.uix.popup import Popup
 
 server_database_path = "/Users/stefan/CurseCocktailBar/WebsiteFiles/CursedCocktails/db.sqlite3"
-
+square_terminal = None
 token_default = {
         "customer_id":"XXXX",
         "token_id":"XXXXXXXXXX",
         "solved":"XXX",
+        "half_solved":"XXX",
         "threewords":"WordWordWord",
         "name_id":"namelastnameDD/MM/YY"
         }
 drink_default = {
-        "drink_id":"XXXX",
-        "price":"XXX",
-        "discount":"XXX",
+        "drink_id":"0000",
+        "price":"15",
+        "discount":"0",
         "token_id":"XXXXXXXXXX",
-        "solve":"XXX",
+        "solve":"0",
         "name":"Drinkname"
         }
 admin_default = {
@@ -1215,6 +1222,41 @@ class TokenScreen(Screen):
     def changeScreen(self,*args):
         self.manager.current = "menu_screen"
 
+class WebhookThread(threading.Thread):
+
+    def __init__(self):
+        threading.Thread.__init__(self)
+        # set a default value
+        self.value = None
+
+    def run(self):
+        self.value = wait_for_webhook_event()
+        app = App.get_running_app()
+        connect_button = app.root.menu_screen.ids.connect_button
+        rsp_dict = json.loads(self.value.decode())
+        try:
+            code = rsp_dict['data']["object"]['device_code']['device_id']
+            print(code)
+            connect_button.text = "Connected to .. %s"%code
+            connect_button.background_color = [0,1,0,1]
+            square_terminal = Terminal(code)
+        except:
+            connect_button.background_color = [1,0,0,1]
+            print("Response was not device.code.paired, try again")
+
+class ConnectPopupLayout(BoxLayout):
+    pass
+class ConnectPopup(Popup):
+    thread = None
+    result = None
+    def __init__(self,thread,result ,**kwargs):
+        super(ConnectPopup, self).__init__(**kwargs)
+        self.thread = thread 
+        self.result = result 
+        Clock.schedule_once(self._finish_init)
+
+    def _finish_init(self,dt):
+        pass
 
 class MenuScreen(Screen):
 
@@ -1225,6 +1267,25 @@ class MenuScreen(Screen):
     def _finish_init(self,dt):
         self.ids.table_button.bind(on_release=self.changeScreen)
         self.ids.token_button.bind(on_release=self.changeScreen)
+        self.ids.connect_button.bind(on_release=self.getDeviceCode)
+
+    def getDeviceCode(self, *args):
+        dev_req = DeviceRequest("EAAAEGkzZJRvIXFqYFj5rnheKPEvel4v5WgUOhrNuN2ej6DuR0EKlukvzbBqPFMG")
+        key, result_dict = dev_req.create_device_code("TestingTerminal","TERMINAL_API","LPZ0C7QDTEHYS")
+        layout = ConnectPopupLayout()
+        try:
+            layout.ids.connecting.text = result_dict['device_code']['code']
+        except:
+            print('There was an error: please retry...')
+            layout.ids.connecting.text = "Error... please retry" 
+            return
+        res = None
+        wait_thread = WebhookThread()
+        popup = ConnectPopup(title="Connect to Terminal",
+                content=layout, thread = wait_thread,result = res) 
+        popup.open()
+        wait_thread.start()
+
 
     def changeScreen(self, *args):
         button = args[0]
@@ -1250,7 +1311,7 @@ tables= []
         
 
 #   Credit to Incliment for spareGridLayout code : https://github.com/inclement/sparsegridlayout
-#   Check him out
+#   Check them out
 #
 ########BEGIN#############
 class SparseGridLayout(FloatLayout):
