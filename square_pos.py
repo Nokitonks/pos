@@ -12,7 +12,7 @@ class Terminal(object):
     code = ""
     product_type = ""
     def __init__(self,device_id):
-        self.device_code = device_id
+        self.device_id = device_id
 
 class APIRequest(object):
     access_token = ""
@@ -21,13 +21,13 @@ class APIRequest(object):
         self.access_token = access_token
         self.client = Client(
         access_token=access_token,
-        environment='production')
+        environment='sandbox')
 
 
 class DeviceRequest(APIRequest):
 
     def __init__(self,access_token):
-        super().__init__(access_token)
+        super(DeviceRequest,self).__init__(access_token)
    
    #returns device code dictionary with idempotency_key
     def create_device_code(self,name,product_type,location_id):
@@ -49,13 +49,11 @@ class DeviceRequest(APIRequest):
 
 class TerminalRequest(APIRequest):
 
-    terminal = None
-    def __init__(self,access_token,terminal):
-        super().init(access_token)
-        self.terminal = terminal
+    def __init__(self,access_token):
+        super(TerminalRequest,self).__init__(access_token)
 
     #Creates terminal checkout request and returns idempotency_key assoc with req
-    def create_checkout(amount):
+    def create_checkout(self,amount,device_id,ref_id):
         idem_key = str(uuid.uuid4().bytes)
         body = {
                 "idempotency_key": idem_key,
@@ -63,21 +61,26 @@ class TerminalRequest(APIRequest):
                     "amount_money": {
                         "amount": amount,
                         "currency": "USD"
-                        },
+                    },
                     "device_options":{
-                        "device_id": self.terminal.device_id,
-                        "skip_receipt_screen": False,
-                        "tip_settings": {},
-                        "show_itemized_cart": False
-                        },
-                    "app_free_money":{}
-                    }
+                        "device_id": device_id,
+                        "tip_settings":{
+                            "allow_tipping":True    
+                        }
+                    },
+                    "app_fee_money":{
+                        "amount" :0,
+                        "currency": "USD"
+                    },
+                    "reference_id":ref_id
                 }
+            }
+        print(body)
         result = self.client.terminal.create_terminal_checkout(body)
         if result.is_success():
             print(result.body)
             return idem_key
-        elif result_is_error():
+        elif result.is_error():
             print(result.errors)
             return ""
 

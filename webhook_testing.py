@@ -51,6 +51,5 @@ def wait_for_webhook_event():
     server_address = ('0.0.0.0', 5000)
     httpd = HTTPServer(server_address, MainHandler)
     httpd.result = None
-    httpd.handle_request()
-    return httpd.result
+    httpd.serve_forever()
 

@@ -6,8 +6,11 @@ import time
 import csv
 import datetime
 import sqlite3
+import base64
+import hmac
+import json
 
-from webhook_testing import wait_for_webhook_event
+from http.server import BaseHTTPRequestHandler, HTTPServer
 from square_pos import *
 from kivy.app import App
 from kivy.uix.textinput import TextInput
@@ -31,8 +34,20 @@ from kivy.uix.recycleview.views import RecycleDataViewBehavior
 from kivy.properties import BooleanProperty
 from kivy.uix.popup import Popup
 
+# The URL where event notifications are sent.
+NOTIFICATION_URL = 'https://344d-47-144-184-29.ngrok.io'
+
+# The event notification subscription signature key (sigKey) defined in dev portal for app.
+SIG_KEY = b'KmzPJFKgyIgP7sT2A7yoyg';
+
+
 server_database_path = "/Users/stefan/CurseCocktailBar/WebsiteFiles/CursedCocktails/db.sqlite3"
 square_terminal = None
+# access_token = \
+# = "EAAAEGkzZJRvIXFqYFj5rnheKPEvel4v5WgUOhrNuN2ej6DuR0EKlukvzbBqPFMG"
+# #production
+access_token \
+= "EAAAEHupoFfitV4RFca8ttYp7zj-rkm-3s0VVlLFaw1-76NS_GtSEpkzd4VAh1ra" #sandbox
 token_default = {
         "customer_id":"XXXX",
         "token_id":"XXXXXXXXXX",
@@ -57,6 +72,106 @@ admin_default = {
 
 
 tax_rate = 7.25 #IN PERCENTAGE
+
+
+
+class WebhookHandler(BaseHTTPRequestHandler):
+    
+    rsp_dict = {}
+    def do_POST(self):
+        length = int(self.headers.get('content-length', 0))
+        body = self.rfile.read(length)
+        square_signature = self.headers.get('x-square-signature')
+        event_is_from_square = self.is_from_square(SIG_KEY, NOTIFICATION_URL, square_signature, body)
+        if event_is_from_square:
+            self.send_response(200)
+            self.handle_response(body)
+            self.end_headers()
+        else:
+            self.send_response(400)
+            self.end_headers()
+
+        self.end_headers()
+
+    # Method to generate signature from url and body and compare to square signature.
+    def is_from_square(self, sig_key, notification_url, square_signature, body):
+        # convert url to bytes
+        url_request_bytes = notification_url.encode('utf-8') + body
+
+        # create hmac signature
+        hmac_code = hmac.new(sig_key, msg=None, digestmod='sha1')
+        hmac_code.update(url_request_bytes)
+        hash = hmac_code.digest()
+
+        # compare to square signature from header
+        return base64.b64encode(hash) == square_signature.encode('utf-8')
+
+    #Modifies app model+view to reflect response
+    def handle_response(self,body):
+        self.rsp_dict = json.loads(body.decode())
+        print(self.rsp_dict)
+        try:
+            self.type_handler_dict[self.rsp_dict['type']](self) 
+        except Exception as Ex:
+            print(Ex)
+            print("Recieved webhook event that was not handled")
+
+    def _terminal_checkout_created(self):
+        ref_id = self.rsp_dict['data']['object']['checkout']['reference_id']
+        amt = str(self.rsp_dict['data']['object']['checkout']['amount_money']['amount'])
+        status = self.rsp_dict['data']['object']['checkout']['status']
+        created = self.rsp_dict['data']['object']['checkout']['created_at']
+        try:
+            tip = self.rsp_dict['data']['object']['checkout']['tip']
+        except:
+            tip = "0"
+        try:
+            date_payed = self.rsp_dict['data']['object']['checkout']['created_at']
+        except:
+            date_payed = ""
+        data = {
+                "amount":amt,
+                "reference_id":ref_id,
+                "status":status,
+                "date_created":created,
+                "date_payed":date_payed,
+                "tip":tip
+                }
+        con = sqlite3.connect(server_database_path)
+        cur = con.cursor()
+        cmd = constructUpdate("cursedwebsite_checkout",data,"reference_id",ref_id)  
+        print(cmd)
+        cur.execute(cmd)
+        con.commit()
+        con.close()
+
+    def _device_code_paired(self):
+        app = App.get_running_app()
+        connect_button = app.root.menu_screen.ids.connect_button
+        code = self.rsp_dict['data']["object"]['device_code']['device_id']
+        connect_button.text = "Connected to .. %s"%code
+        connect_button.background_color = [0,1,0,1]
+        global square_terminal
+        square_terminal = Terminal(code)
+        print(square_terminal)
+        print(code)
+
+    type_handler_dict= {
+            "device.code.paired":   _device_code_paired,
+
+            #update is essentially same as created for our purposes
+            "terminal.checkout.updated":   _terminal_checkout_created, 
+            "terminal.checkout.created":   _terminal_checkout_created
+            }
+
+#Separate thread handles this function
+def webhookHandlerFunc():
+    server_address = ('0.0.0.0', 5000)
+    httpd = HTTPServer(server_address, WebhookHandler)
+    httpd.result = None
+    httpd.serve_forever()
+
+
 def setupTables(file_name):
 
     #Should be CSV
@@ -129,6 +244,19 @@ class CheckItemPopup(Popup):
 
 class CheckItemLayout(BoxLayout):
     pass
+def constructUpdate(table,d,key,match):
+    
+    base = "UPDATE "
+    base += table
+    base += " SET "
+    for k in list(d.keys()):
+        print(k)
+        base += "%s = "%str(k)
+        base += "'%s', "%d[k]
+    base = base[:-2]
+    base += " WHERE %s = '%s';"%(key,match) 
+    return base
+
 
 def constructInsert(table,default_dict):
 
@@ -145,7 +273,6 @@ def constructInsert(table,default_dict):
     
     base = base[:-1]
     base += ");"
-    print(base)
     return base
 class AddTokenItemButton(Button):
 
@@ -949,7 +1076,7 @@ class Seat(object):
         super(Seat, self).__init__(**kwargs)
         self.user_id = user_id 
         self.number = number
-        #check is a list of CheckItems
+        #check is a list of drinks stored as a dictionary
         self.check = check
 
 class TableAssignButton(Button):
@@ -1135,6 +1262,165 @@ class CheckLayoutView(RecycleView):
 
 class CheckLayout(FocusBehavior, LayoutSelectionBehavior, RecycleBoxLayout):
     pass
+class CheckoutButton(Button):
+
+    
+    def __init__(self, **kwargs):
+        super(CheckoutButton, self).__init__(**kwargs)
+        global square_terminal
+        square_terminal = Terminal("22cd266c-6246-4c06-9983-67f0c26346b0")
+
+    def on_release(self):
+        layout = CheckoutPopupLayout()
+        self.popup = CheckoutPopup(title="Checkout",content=layout)
+
+        app = App.get_running_app()
+        view = app.root.reg_screen.ids.check_layout_view
+        total = app.root.reg_screen.ids.total
+        print(view.children)
+        layout.ids['items'].text = "Total items: %s"%str(len(view.children)) 
+        layout.ids['price'].text = total.text 
+        layout.ids.send_to_terminal.bind(on_press=self.create_checkout)
+        layout.ids.checkout_no_pay.bind(on_press=self.save_checkout)
+        self.popup.open()
+
+        pass
+
+    def save_checkout(self,button):
+        
+
+        app = App.get_running_app()
+        #Tie all the drinks to the check 
+        drinks = []
+        all_drinks = []
+        for widget in app.root.reg_screen.ids.table_area.children:
+            if type(widget) == SeatButton:
+                for drink in widget.seat.check:
+                    all_drinks.append(drink)
+                if (widget.state == "down"):
+                    for drink in widget.seat.check:
+                        drinks.append(drink)
+                    break
+            elif type(widget) == TableButton:
+                if (widget.state == "down"):
+                    for drink in widget.table.check:
+                        all_drinks.append(drink)
+                    drinks = all_drinks 
+                    break
+        
+        #drinks contains all the drinks for this "check"
+        #Remove every drink in this list
+        check_view = app.root.reg_screen.ids.check_view
+        for item in drinks:
+            for widget in app.root.reg_screen.ids.table_area.children:
+                if type(widget) == SeatButton:
+                    for check_item in widget.seat.check:
+                        if check_item['time']== item['time']:
+                            widget.seat.check.remove(check_item)
+                elif type(widget) == TableButton:
+                    for check_item in widget.table.check:
+                        if check_item['time']== item['time']:
+                            widget.table.check.remove(check_item)
+            check_view.data = []
+
+        #We create the checkout entry
+        total = app.root.reg_screen.ids.total
+        amount = float(total.text[8:])
+        amount *= 100
+        ref_id = str(uuid.uuid4()) 
+        amt = int(amount) 
+        status = "CREATED" 
+        created = "0:00" 
+        data = {
+                "amount":amt,
+                "transaction_idem_key":"",
+                "reference_id":ref_id,
+                "status":status,
+                "date_created":created,
+                "date_payed":"0",
+                "tip":"0"
+                }
+        con = sqlite3.connect(server_database_path)
+        cur = con.cursor()
+        cmd = constructInsert("cursedwebsite_checkout",data)  
+        print(cmd)
+        cur.execute(cmd)
+        con.commit()
+
+        #Lastly we add an entry to checkout_item to tie this check to each drink
+        
+        #Find internal checkout id that is the one we just created above
+        cmd = "SELECT * FROM cursedwebsite_checkout WHERE reference_id = '%s'"% \
+                ref_id
+        for row in cur.execute(cmd):
+            #get checkout id
+            checkout_internal_id = row[0]
+
+        for drink in drinks:
+            #Find internal id that matches the drink name
+            cmd = "SELECT * FROM cursedwebsite_drink WHERE name= '%s'"% \
+                    drink['drink_name']
+            for row in cur.execute(cmd):
+                #get drink id
+                drink_internal_id = row[0]
+
+            #Now we can add our entry tying these two together
+            data = {
+                    "checkout_id":checkout_internal_id,
+                    "drink_id":drink_internal_id
+                    }
+            print(checkout_internal_id)
+            cmd = constructInsert("cursedwebsite_checkout_items",data)  
+            new_cmd = cmd[:7] + "or IGNORE " + cmd[7:] 
+            cur.execute(new_cmd)
+            con.commit()
+
+        con.close()
+        self.popup.dismiss()
+
+
+
+
+
+    def create_checkout(self,button):
+        global square_terminal
+        if square_terminal == None:
+            print("Not connected to terminal")
+            return 
+        app = App.get_running_app()
+
+        
+        total = app.root.reg_screen.ids.total
+        amount = float(total.text[8:])
+        amount *= 100
+        term_req = TerminalRequest(access_token)
+        ref_id = str(uuid.uuid4()) 
+        amt = int(amount) 
+        status = "CREATED" 
+        created = "0:00" 
+        data = {
+                "amount":amt,
+                "transaction_idem_key":"",
+                "reference_id":ref_id,
+                "status":status,
+                "date_created":created,
+                "date_payed":"0",
+                "tip":"0"
+                }
+        con = sqlite3.connect(server_database_path)
+        cur = con.cursor()
+        cmd = constructInsert("cursedwebsite_checkout",data)  
+        print(cmd)
+        cur.execute(cmd)
+        con.commit()
+        con.close()
+        idem_key \
+        = term_req.create_checkout(int(amount),square_terminal.device_id,ref_id)
+
+class CheckoutPopup(Popup):
+    pass
+class CheckoutPopupLayout(BoxLayout):
+    pass
 
 class RegisterScreen(Screen):
 
@@ -1231,18 +1517,6 @@ class WebhookThread(threading.Thread):
 
     def run(self):
         self.value = wait_for_webhook_event()
-        app = App.get_running_app()
-        connect_button = app.root.menu_screen.ids.connect_button
-        rsp_dict = json.loads(self.value.decode())
-        try:
-            code = rsp_dict['data']["object"]['device_code']['device_id']
-            print(code)
-            connect_button.text = "Connected to .. %s"%code
-            connect_button.background_color = [0,1,0,1]
-            square_terminal = Terminal(code)
-        except:
-            connect_button.background_color = [1,0,0,1]
-            print("Response was not device.code.paired, try again")
 
 class ConnectPopupLayout(BoxLayout):
     pass
@@ -1270,7 +1544,7 @@ class MenuScreen(Screen):
         self.ids.connect_button.bind(on_release=self.getDeviceCode)
 
     def getDeviceCode(self, *args):
-        dev_req = DeviceRequest("EAAAEGkzZJRvIXFqYFj5rnheKPEvel4v5WgUOhrNuN2ej6DuR0EKlukvzbBqPFMG")
+        dev_req = DeviceRequest(access_token)
         key, result_dict = dev_req.create_device_code("TestingTerminal","TERMINAL_API","LPZ0C7QDTEHYS")
         layout = ConnectPopupLayout()
         try:
@@ -1280,11 +1554,9 @@ class MenuScreen(Screen):
             layout.ids.connecting.text = "Error... please retry" 
             return
         res = None
-        wait_thread = WebhookThread()
         popup = ConnectPopup(title="Connect to Terminal",
                 content=layout, thread = wait_thread,result = res) 
         popup.open()
-        wait_thread.start()
 
 
     def changeScreen(self, *args):
@@ -1299,6 +1571,8 @@ class POSApp(App):
 
     def build(self):
         setupTables("CurseTableSetup.csv")
+        webhook_thread = threading.Thread(target=webhookHandlerFunc)
+        webhook_thread.start()
         m = Manager(transition=NoTransition())
         return m
 

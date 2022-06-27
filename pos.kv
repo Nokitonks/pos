@@ -160,6 +160,24 @@
       size_hint: 0.35,1
 
 
+<CheckoutPopup>:
+  size_hint: 0.6,0.6  
+<CheckoutPopupLayout>:
+  orientation: 'vertical'
+  Label:
+    id: items
+    text: "Total Items :x"
+  Label:
+    id: price
+    text: "Total Price: x"
+  BoxLayout:
+    Button:
+      id: send_to_terminal
+      text: "Send to Terminal"
+    Button:
+      id: checkout_no_pay
+      text: "Checkout without paying"
+
 <TokenItemPopup>:
   size_hint: 0.6,0.6  
 
@@ -294,6 +312,7 @@
         viewclass: 'CheckItem'
         size_hint:  1 , 0.7
         CheckLayout:
+          id:check_layout_view
           orientation: 'vertical'
           default_size_hint: 1, None
           size_hint_y: None
@@ -328,7 +347,7 @@
         Button:
           id:print_button
           text: "Print"
-        Button:
+        CheckoutButton:
           id:checkout_button
           text: "Checkout"
 
